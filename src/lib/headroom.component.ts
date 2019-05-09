@@ -1,10 +1,3 @@
-import {
-  animate,
-  state,
-  style,
-  transition,
-  trigger,
-} from '@angular/animations';
 import { DOCUMENT } from '@angular/common';
 import {
   AfterContentInit,
@@ -28,13 +21,6 @@ import shouldUpdate from './shouldUpdate';
   <div [ngStyle]="wrapperStyle" class="headroom-wrapper {{ wrapperClassName }}"
     [style.height.px]="wrapperHeight">
     <div #ref
-      [@headroom]="{
-        value: state,
-        params: {
-          duration: duration,
-          easing: easing
-        }
-      }"
       [ngStyle]="innerStyle"
       [class]="innerClassName"
       [class.headroom]="true"
@@ -46,32 +32,6 @@ import shouldUpdate from './shouldUpdate';
     </div>
   </div>
   `,
-  animations: [
-    trigger('headroom', [
-      state(
-        'unfixed',
-        style({
-          transform: 'translateY(0)',
-        }),
-      ),
-      state(
-        'unpinned',
-        style({
-          transform: 'translateY(-100%)',
-        }),
-      ),
-      state(
-        'pinned',
-        style({
-          transform: 'translateY(0px)',
-        }),
-      ),
-      transition(
-        'unpinned <=> pinned',
-        animate('{{ duration }}ms {{ easing }}'),
-      ),
-    ]),
-  ],
   preserveWhitespaces: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -116,9 +76,11 @@ export class HeadroomComponent implements OnInit, AfterContentInit {
   scrolled = false;
   resizeTicking = false;
   state = 'unfixed';
-  translateY = '0px';
+  translateY: number | string = 0;
   height: number;
   scrollTicking = false;
+  animation = false;
+  firstTick = true;
   /**
    * provide a custom 'parent' element for scroll events.
    * `parent` should be a function which resolves to the desired element.
@@ -137,7 +99,7 @@ export class HeadroomComponent implements OnInit, AfterContentInit {
   constructor(@Inject(DOCUMENT) private document: any) {}
 
   ngOnInit() {
-    this.innerStyle.transform = `translateY(${this.translateY})`;
+    // this.innerStyle.transform = `translate3D(0, ${this.translateY}, 0)`;
 
     if (this.disable === true) {
       this.handleUnfix();
@@ -246,20 +208,29 @@ export class HeadroomComponent implements OnInit, AfterContentInit {
   handleUnpin() {
     this.unpin.emit();
     this.state = 'unpinned';
-    this.innerStyle.position =
-      this.disable || this.state === 'unfixed' ? 'relative' : 'fixed';
+    this.animation = true;
+    this.translateY = '-100%';
   }
   handlePin() {
     this.pin.emit();
     this.state = 'pinned';
-    this.innerStyle.position =
-      this.disable || this.state === 'unfixed' ? 'relative' : 'fixed';
+    this.animation = true;
+    this.translateY = 0;
   }
   handleUnfix() {
     this.unfix.emit();
     this.state = 'unfixed';
-    this.innerStyle.position =
-      this.disable || this.state === 'unfixed' ? 'relative' : 'fixed';
+    this.animation = false;
+    this.translateY = 0;
+  }
+  handleUnpinSnap() {
+    this.unpin.emit();
+
+    // this.className = 'headroom headroom--unpinned headroom-disable-animation';
+    this.animation = false;
+    this.state = 'unpinned';
+    this.translateY = '-100%';
+    console.log('snap')
   }
   update() {
     this.currentScrollY = this.getScrollY();
@@ -280,12 +251,45 @@ export class HeadroomComponent implements OnInit, AfterContentInit {
         this.handlePin();
       } else if (action === 'unpin') {
         this.handleUnpin();
+      } else if (action === 'unpin-snap') {
+        this.handleUnpinSnap();
       } else if (action === 'unfix') {
         this.handleUnfix();
       }
+      this.innerStyle = {
+        ...this.innerStyle,
+        WebkitTransform: `translate3D(0, ${this.translateY}, 0)`,
+        MsTransform: `translate3D(0, ${this.translateY}, 0)`,
+        transform: `translate3D(0, ${this.translateY}, 0)`,
+        position: this.disable || this.state === 'unfixed' ? 'relative' : 'fixed',
+      };
+    }
+
+    // Don't add css transitions until after we've done the initial
+    // negative transform when transitioning from 'unfixed' to 'unpinned'.
+    // If we don't do this, the header will flash into view temporarily
+    // while it transitions from 0 — -100%.
+    if (this.animation && !this.firstTick) {
+      this.innerStyle = {
+        ...this.innerStyle,
+        WebkitTransition: 'all .2s ease-in-out',
+        MozTransition: 'all .2s ease-in-out',
+        OTransition: 'all .2s ease-in-out',
+        transition: 'all .2s ease-in-out',
+      };
+    } else {
+      console.log('NO ANIMATION')
+      this.innerStyle = {
+        ...this.innerStyle,
+        WebkitTransition: 'none',
+        MozTransition: 'none',
+        OTransition: 'none',
+        transition: 'none',
+      };
     }
 
     this.lastKnownScrollY = this.currentScrollY;
     this.scrollTicking = false;
+    this.firstTick = false;
   }
 }

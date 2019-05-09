@@ -36,9 +36,20 @@ export default function(
       scrollDirection,
       distanceScrolled,
     };
+
+  } else if (
+    currentScrollY > (height + pinStart) &&
+    scrollDirection === 'down' &&
+    state === 'unfixed'
+  ) {
+    return {
+      action: 'unpin-snap',
+      scrollDirection,
+      distanceScrolled,
+    }
     // We're past the header and scrolling down.
     // We transition to "unpinned" if necessary.
-  } else if (
+  }  else if (
     scrollDirection === 'down' &&
     ['pinned', 'unfixed'].indexOf(state) >= 0 &&
     currentScrollY > height + pinStart &&
